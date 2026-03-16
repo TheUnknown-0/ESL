@@ -16,6 +16,8 @@ if (session_status() === PHP_SESSION_NONE) {
 
 requireLogin();
 
+require_once __DIR__ . '/../includes/theme.php';
+
 $success = '';
 $error = '';
 $clearForm = false;
@@ -61,12 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= e($themeHtmlClasses) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vorschlag einreichen</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <?php outputThemeHead(); ?>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <!-- Kopfzeile -->

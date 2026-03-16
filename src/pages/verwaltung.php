@@ -16,6 +16,8 @@ if (session_status() === PHP_SESSION_NONE) {
 
 requireAdmin();
 
+require_once __DIR__ . '/../includes/theme.php';
+
 $db = getDB();
 $success = '';
 $error = '';
@@ -200,12 +202,13 @@ try {
 $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Umgesetzt', 'Angenommen', 'Abgelehnt'];
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= e($themeHtmlClasses) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verwaltung</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <?php outputThemeHead(); ?>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <!-- Kopfzeile -->

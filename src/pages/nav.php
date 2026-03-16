@@ -15,6 +15,8 @@ if (session_status() === PHP_SESSION_NONE) {
 
 requireLogin();
 
+require_once __DIR__ . '/../includes/theme.php';
+
 // Aktive Seiten aus der Datenbank laden
 try {
     $db = getDB();
@@ -31,12 +33,13 @@ $visiblePages = array_filter($pages, function ($p) {
 });
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= e($themeHtmlClasses) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navigation – Schwarzes Brett</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <?php outputThemeHead(); ?>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="max-w-4xl mx-auto py-12 px-4">
@@ -44,6 +47,10 @@ $visiblePages = array_filter($pages, function ($p) {
             <h1 class="text-3xl font-bold text-gray-800">Navigation</h1>
             <div class="flex items-center gap-4">
                 <span class="text-gray-600">Eingeloggt als: <strong><?= e($_SESSION['username'] ?? '') ?></strong></span>
+                <a href="index.php?page=einstellungen"
+                   class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">
+                    ⚙️ Einstellungen
+                </a>
                 <a href="index.php?page=logout"
                    class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 text-sm font-bold">
                     Abmelden

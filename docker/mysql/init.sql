@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL,
     is_admin TINYINT(1) DEFAULT 0,
     email_notifications TINYINT(1) DEFAULT 1,
+    theme ENUM('light','dark') DEFAULT 'light',
+    style ENUM('default','anthropic') DEFAULT 'default',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -57,10 +59,11 @@ CREATE TABLE IF NOT EXISTS projects (
 -- ============================================================
 
 -- Navigationsseiten einfügen
-INSERT INTO pages (slug, label, requires_admin, sort_order) VALUES
-    ('schwarzes-brett', 'Schwarzes Brett', 0, 1),
-    ('vorschlag',       'Vorschlag',       0, 2),
-    ('verwaltung',      'Verwaltung',      1, 3);
+INSERT INTO pages (slug, label, icon, requires_admin, sort_order) VALUES
+    ('schwarzes-brett', 'Schwarzes Brett', NULL, 0, 1),
+    ('vorschlag',       'Vorschlag',       NULL, 0, 2),
+    ('verwaltung',      'Verwaltung',      NULL, 1, 3),
+    ('einstellungen',   'Einstellungen',   NULL, 0, 4);
 
 -- Initialer Admin-Nutzer (Passwort: Admin123!)
 -- bcrypt-Hash für 'Admin123!' erzeugt mit password_hash('Admin123!', PASSWORD_BCRYPT)

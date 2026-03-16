@@ -27,6 +27,21 @@ if ($page === 'login' || $page === '') {
 // Alle anderen Seiten erfordern Login
 requireLogin();
 
+// Nutzerpräferenzen (Theme/Style) in Session laden, falls noch nicht vorhanden
+if (!isset($_SESSION['theme'])) {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT theme, style FROM users WHERE id = ?');
+        $stmt->execute([$_SESSION['user_id']]);
+        $prefs = $stmt->fetch();
+        $_SESSION['theme'] = $prefs['theme'] ?? 'light';
+        $_SESSION['style'] = $prefs['style'] ?? 'default';
+    } catch (Exception $e) {
+        $_SESSION['theme'] = 'light';
+        $_SESSION['style'] = 'default';
+    }
+}
+
 // Navigationsseite
 if ($page === 'nav') {
     require __DIR__ . '/pages/nav.php';
@@ -38,6 +53,12 @@ if ($page === 'logout') {
     session_unset();
     session_destroy();
     header('Location: index.php?page=login');
+    exit;
+}
+
+// Einstellungsseite
+if ($page === 'einstellungen') {
+    require __DIR__ . '/pages/einstellungen.php';
     exit;
 }
 
