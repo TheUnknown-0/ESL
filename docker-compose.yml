@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-webapp}
+      - DB_USER=${DB_USER:-webuser}
+      - DB_PASS=${DB_PASS:-geheimespasswort}
+      - MAIL_FROM=${MAIL_FROM:-noreply@example.com}
+      - APP_ENV=${APP_ENV:-production}
+    networks:
+      - app-network
+
+  web:
+    image: nginx:stable
+    ports:
+      - "8080:80"
+    volumes:
+      - ./src:/var/www/html
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS:-geheimespasswort}
+      MYSQL_DATABASE: ${DB_NAME:-webapp}
+      MYSQL_USER: ${DB_USER:-webuser}
+      MYSQL_PASSWORD: ${DB_PASS:-geheimespasswort}
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app-network
+
+volumes:
+  db-data:
+
+networks:
+  app-network:
+    driver: bridge
