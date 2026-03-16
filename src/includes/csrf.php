@@ -50,8 +50,5 @@ function validateCsrfToken(): bool
 
     $valid = hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']);
 
-    // Token nach Verwendung erneuern
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-
     return $valid;
 }

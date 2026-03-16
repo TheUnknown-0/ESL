@@ -22,7 +22,13 @@ function sendMail(string $to, string $subject, string $body): bool
         'X-Mailer: PHP/' . phpversion(),
     ];
 
-    return @mail($to, $subject, $body, implode("\r\n", $headers));
+    $result = mail($to, $subject, $body, implode("\r\n", $headers));
+
+    if (!$result) {
+        error_log('E-Mail-Versand fehlgeschlagen an: ' . $to);
+    }
+
+    return $result;
 }
 
 /**

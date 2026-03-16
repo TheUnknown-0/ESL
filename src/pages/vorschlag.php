@@ -18,6 +18,7 @@ requireLogin();
 
 $success = '';
 $error = '';
+$clearForm = false;
 
 // Formular verarbeiten
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -45,14 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$name, $description, $reason, 'Vorgeschlagen', $isAnonymous, $proposedBy]);
 
                 $success = 'Ihr Vorschlag wurde erfolgreich eingereicht!';
+                $clearForm = true;
 
                 // E-Mail-Benachrichtigung an Admins (nur wenn NICHT anonym)
                 if (!$isAnonymous) {
                     notifyAdminsNewProposal($name, $_SESSION['username']);
                 }
-
-                // Formularfelder zurücksetzen (Werte werden nicht mehr angezeigt)
-                $_POST = [];
             } catch (Exception $e) {
                 error_log('Vorschlag-Fehler: ' . $e->getMessage());
                 $error = 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.';
@@ -102,19 +101,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="name" class="block text-gray-700 text-sm font-bold mb-2">Projektname *</label>
                     <input type="text" id="name" name="name" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                           value="<?= e($_POST['name'] ?? '') ?>">
+                           value="<?= $clearForm ? '' : e($_POST['name'] ?? '') ?>">
                 </div>
 
                 <div class="mb-4">
                     <label for="description" class="block text-gray-700 text-sm font-bold mb-2">Beschreibung *</label>
                     <textarea id="description" name="description" rows="4" required
-                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"><?= e($_POST['description'] ?? '') ?></textarea>
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"><?= $clearForm ? '' : e($_POST['description'] ?? '') ?></textarea>
                 </div>
 
                 <div class="mb-4">
                     <label for="reason" class="block text-gray-700 text-sm font-bold mb-2">Begründung *</label>
                     <textarea id="reason" name="reason" rows="3" required
-                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"><?= e($_POST['reason'] ?? '') ?></textarea>
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"><?= $clearForm ? '' : e($_POST['reason'] ?? '') ?></textarea>
                 </div>
 
                 <div class="mb-6">
