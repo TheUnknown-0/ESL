@@ -23,7 +23,12 @@ define('DB_USER', getenv('DB_USER') ?: 'webuser');
 define('DB_PASS', getenv('DB_PASS') ?: 'geheimespasswort');
 
 // E-Mail-Konfiguration
-define('MAIL_FROM', getenv('MAIL_FROM') ?: 'noreply@example.com');
+define('MAIL_FROM',    getenv('MAIL_FROM')    ?: 'noreply@example.com');
+define('SMTP_HOST',    getenv('SMTP_HOST')    ?: '');
+define('SMTP_PORT',    (int)(getenv('SMTP_PORT') ?: 587));
+define('SMTP_SECURE',  getenv('SMTP_SECURE')  ?: 'tls');
+define('SMTP_USER',    getenv('SMTP_USER')    ?: '');
+define('SMTP_PASS',    getenv('SMTP_PASS')    ?: '');
 
 // Anwendungsumgebung
 define('APP_ENV', getenv('APP_ENV') ?: 'production');

@@ -1,0 +1,19 @@
+# Umgebungsvariablen – niemals ins Repository!
+.env
+
+# Docker-Volumes und temporäre Dateien
+docker/mysql/data/
+
+# PHP-Fehlerlog
+*.log
+error_log
+
+# Composer-Abhängigkeiten
+vendor/
+composer.lock
+
+# IDE-Dateien
+.idea/
+.vscode/
+*.swp
+*.swo

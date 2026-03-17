@@ -16,6 +16,11 @@ services:
       - DB_USER=${DB_USER:-webuser}
       - DB_PASS=${DB_PASS:-geheimespasswort}
       - MAIL_FROM=${MAIL_FROM:-noreply@example.com}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-tls}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
       - APP_ENV=${APP_ENV:-production}
     networks:
       - app-network
