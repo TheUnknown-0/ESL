@@ -38,6 +38,7 @@ services:
       - app
     networks:
       - app-network
+      - proxy_network
 
   db:
     container_name: esl-db
@@ -59,3 +60,5 @@ volumes:
 networks:
   app-network:
     driver: bridge
+  proxy_network:
+    external: true
