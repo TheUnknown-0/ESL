@@ -240,6 +240,19 @@ try {
 }
 
 $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Angenommen', 'Abgelehnt'];
+
+// Priorisierbare Projekte für das Kanban-Board laden
+$priorisierbar = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung'];
+$prioProjects = ['Unpriorisiert' => [], 'Hoch' => [], 'Mittel' => [], 'Niedrig' => []];
+foreach ($projects as $p) {
+    if (!in_array($p['status'], $priorisierbar)) continue;
+    $col = $p['priority'] ?? null;
+    if ($col === null || !isset($prioProjects[$col])) {
+        $prioProjects['Unpriorisiert'][] = $p;
+    } else {
+        $prioProjects[$col][] = $p;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="de" class="<?= e($themeHtmlClasses) ?>">
@@ -248,6 +261,7 @@ $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Angenomm
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verwaltung</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <?php outputThemeHead(); ?>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -290,6 +304,10 @@ $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Angenomm
                 <button onclick="showTab('system')" id="tab-system"
                         class="px-4 py-2 rounded-md bg-gray-200 text-gray-700 font-bold text-sm sm:text-base">
                     System
+                </button>
+                <button onclick="showTab('prioritization')" id="tab-prioritization"
+                        class="px-4 py-2 rounded-md bg-gray-200 text-gray-700 font-bold text-sm sm:text-base">
+                    Priorisierung
                 </button>
             </nav>
         </div>
@@ -557,6 +575,84 @@ $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Angenomm
                 </form>
             </div>
         </div>
+        <!-- ============================================================ -->
+        <!-- Priorisierung (Kanban) -->
+        <!-- ============================================================ -->
+        <div id="panel-prioritization" class="hidden">
+
+            <!-- Toast-Container -->
+            <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+
+            <!-- Suchfeld -->
+            <div class="mb-4">
+                <input
+                    type="text"
+                    id="prioritization-search"
+                    placeholder="🔍 Projekte suchen…"
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+            </div>
+
+            <!-- Kanban-Spalten -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+                <?php
+                $columnConfig = [
+                    'Unpriorisiert' => ['emoji' => '📌', 'bg' => 'bg-gray-50',   'border' => 'border-gray-300',  'hdr' => 'text-gray-700',   'cnt' => 'bg-gray-200',   'drop' => 'border-gray-300'],
+                    'Hoch'          => ['emoji' => '🔴', 'bg' => 'bg-red-50',    'border' => 'border-red-300',   'hdr' => 'text-red-700',    'cnt' => 'bg-red-200',    'drop' => 'border-red-300'],
+                    'Mittel'        => ['emoji' => '🟡', 'bg' => 'bg-yellow-50', 'border' => 'border-yellow-300','hdr' => 'text-yellow-700', 'cnt' => 'bg-yellow-200', 'drop' => 'border-yellow-300'],
+                    'Niedrig'       => ['emoji' => '🟢', 'bg' => 'bg-green-50',  'border' => 'border-green-300', 'hdr' => 'text-green-700',  'cnt' => 'bg-green-200',  'drop' => 'border-green-300'],
+                ];
+
+                foreach ($columnConfig as $colName => $cfg):
+                    $cards = $prioProjects[$colName];
+                    $count = count($cards);
+                ?>
+                <div class="<?= $cfg['bg'] ?> rounded-lg p-4 border-2 <?= $cfg['border'] ?>">
+                    <h3 class="font-bold text-lg <?= $cfg['hdr'] ?> mb-4 flex items-center gap-2">
+                        <?= $cfg['emoji'] ?> <?= e($colName) ?>
+                        <span class="text-sm <?= $cfg['cnt'] ?> px-2 py-0.5 rounded"><?= $count ?></span>
+                    </h3>
+                    <div
+                        class="priority-column min-h-40 bg-white rounded border-2 border-dashed <?= $cfg['drop'] ?> p-2 space-y-2"
+                        data-priority="<?= e($colName) ?>"
+                    >
+                        <?php foreach ($cards as $card):
+                            $statusSlug = strtolower(str_replace(' ', '-', $card['status']));
+                        ?>
+                        <div
+                            class="draggable-project-card p-3 bg-white border border-gray-200 rounded cursor-move hover:shadow-md transition select-none"
+                            data-project-id="<?= (int)$card['id'] ?>"
+                            draggable="true"
+                        >
+                            <h4 class="font-semibold text-sm leading-snug"><?= e($card['name']) ?></h4>
+                            <?php if ($card['description']): ?>
+                            <p class="text-xs text-gray-500 mt-1 line-clamp-2"><?= e(mb_strimwidth($card['description'], 0, 100, '…')) ?></p>
+                            <?php endif; ?>
+                            <div class="mt-2">
+                                <span class="text-xs px-2 py-0.5 rounded-full font-medium status-badge-<?= e($statusSlug) ?>">
+                                    <?= e($card['status']) ?>
+                                </span>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+
+            </div>
+
+            <!-- Status-Badge-Styles -->
+            <style>
+                .status-badge-vorgeschlagen   { background: #dbeafe; color: #1d4ed8; }
+                .status-badge-in-besprechung  { background: #ccfbf1; color: #0f766e; }
+                .status-badge-in-bearbeitung  { background: #ede9fe; color: #6d28d9; }
+                .sortable-ghost { opacity: 0.4; }
+                .sortable-drag  { box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+                .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+            </style>
+        </div>
+
     </main>
 
     <!-- ============================================================ -->
@@ -702,7 +798,7 @@ $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Angenomm
         // Tab-Umschaltung
         // ============================================================
         function showTab(tab) {
-            ['projects', 'users', 'system'].forEach(t => {
+            ['projects', 'users', 'system', 'prioritization'].forEach(t => {
                 document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
                 const btn = document.getElementById('tab-' + t);
                 btn.className = t === tab
@@ -885,12 +981,105 @@ $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Angenomm
         // Tab vor Submit speichern
         document.querySelectorAll('form').forEach(form => {
             form.addEventListener('submit', () => {
-                const activeTab = document.getElementById('panel-users').classList.contains('hidden')
-                    ? (document.getElementById('panel-system').classList.contains('hidden') ? 'projects' : 'system')
-                    : 'users';
+                const tabs = ['projects', 'users', 'system', 'prioritization'];
+                const activeTab = tabs.find(t => !document.getElementById('panel-' + t).classList.contains('hidden')) || 'projects';
                 sessionStorage.setItem('verwaltung_tab', activeTab);
             });
         });
+
+        // ============================================================
+        // Priorisierungs-Kanban
+        // ============================================================
+        (function () {
+            // Toast-Helper
+            function showToast(msg, type) {
+                const container = document.getElementById('toast-container');
+                if (!container) return;
+                const toast = document.createElement('div');
+                toast.className = [
+                    'px-4 py-3 rounded shadow-lg text-sm font-medium transition-opacity duration-300',
+                    type === 'success' ? 'bg-green-100 border border-green-400 text-green-800'
+                                      : 'bg-red-100 border border-red-400 text-red-800',
+                ].join(' ');
+                toast.textContent = msg;
+                container.appendChild(toast);
+                setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+            }
+
+            // CSRF-Token aus dem DOM holen
+            function getCsrfToken() {
+                return document.querySelector('input[name="csrf_token"]')?.value ?? '';
+            }
+
+            // Ajax-Request
+            function sendPrioritizeRequest(projectId, newPriority, cardEl, originColumn) {
+                fetch('/src/api/projects.php?action=prioritize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken(),
+                    },
+                    body: JSON.stringify({
+                        project_id: projectId,
+                        priority: newPriority === 'Unpriorisiert' ? null : newPriority,
+                    }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('✓ Priorität aktualisiert', 'success');
+                        updateColumnCounts();
+                    } else {
+                        showToast('✗ ' + (data.error || 'Fehler'), 'error');
+                        // Karte zurücklegen
+                        originColumn.appendChild(cardEl);
+                        updateColumnCounts();
+                    }
+                })
+                .catch(() => {
+                    showToast('✗ Netzwerkfehler', 'error');
+                    originColumn.appendChild(cardEl);
+                    updateColumnCounts();
+                });
+            }
+
+            // Spalten-Counter aktualisieren
+            function updateColumnCounts() {
+                document.querySelectorAll('.priority-column').forEach(col => {
+                    const wrapper = col.parentElement; // the colored column div
+                    const countBadge = wrapper?.querySelector('h3 span');
+                    if (countBadge) countBadge.textContent = col.querySelectorAll('.draggable-project-card').length;
+                });
+            }
+
+            // Sortable.js initialisieren (nach DOM-ready, d.h. hier direkt)
+            document.querySelectorAll('.priority-column').forEach(column => {
+                Sortable.create(column, {
+                    group: 'priority-projects',
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    onEnd: function (evt) {
+                        if (evt.from === evt.to) return; // gleiche Spalte – nichts zu tun
+                        const projectId  = parseInt(evt.item.dataset.projectId, 10);
+                        const newPriority = evt.to.dataset.priority;
+                        sendPrioritizeRequest(projectId, newPriority, evt.item, evt.from);
+                    },
+                });
+            });
+
+            // Live-Suchfilter
+            const searchInput = document.getElementById('prioritization-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    const term = this.value.toLowerCase();
+                    document.querySelectorAll('.draggable-project-card').forEach(card => {
+                        const text = card.textContent.toLowerCase();
+                        card.style.opacity = (!term || text.includes(term)) ? '1' : '0.2';
+                    });
+                });
+            }
+        })();
     </script>
 </body>
 </html>
