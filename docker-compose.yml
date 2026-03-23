@@ -9,7 +9,8 @@ services:
     volumes:
       - ./src:/var/www/html
     depends_on:
-      - db
+      migrate:
+        condition: service_completed_successfully
     environment:
       - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-3306}
@@ -53,8 +54,32 @@ services:
       - db-data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/00_init.sql
       - ./docker/mysql/migrations:/docker-entrypoint-initdb.d/migrations
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASS:-geheimespasswort}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - app-network
+
+  migrate:
+    container_name: esl-migrate
+    image: mysql:8.0
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./docker/mysql/migrations:/migrations
+    environment:
+      MYSQL_PWD: ${DB_PASS:-geheimespasswort}
+    command: >
+      sh -c "for f in $(ls /migrations/*.sql | sort); do
+        echo \"Applying migration: $$f\";
+        mysql -h db -u${DB_USER:-webuser} ${DB_NAME:-webapp} < $$f;
+      done && echo 'Migrations done.'"
+    networks:
+      - app-network
+    restart: "no"
 
 volumes:
   db-data:
