@@ -24,7 +24,7 @@ services:
       - APP_ENV=${APP_ENV:-production}
     networks:
       - app-network
-      - proxy_network
+      
 
   web:
     image: nginx:stable
@@ -37,6 +37,7 @@ services:
       - app
     networks:
       - app-network
+      - proxy_network
 
   db:
     image: mysql:8.0
