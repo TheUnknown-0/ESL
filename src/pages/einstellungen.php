@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $success = 'Erscheinungsbild gespeichert.';
             } catch (Exception $e) {
                 error_log('Einstellungen-Fehler: ' . $e->getMessage());
-                $error = 'Fehler beim Speichern. Bitte versuchen Sie es erneut.';
+                $error = appendAdminError('Fehler beim Speichern. Bitte versuchen Sie es erneut.', $e);
             }
         }
 
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $success = 'E-Mail-Einstellungen gespeichert.';
             } catch (Exception $e) {
                 error_log('Einstellungen-Fehler: ' . $e->getMessage());
-                $error = 'Fehler beim Speichern. Bitte versuchen Sie es erneut.';
+                $error = appendAdminError('Fehler beim Speichern. Bitte versuchen Sie es erneut.', $e);
             }
         }
     }

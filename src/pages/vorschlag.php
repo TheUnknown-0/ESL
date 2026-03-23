@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } catch (Exception $e) {
                 error_log('Vorschlag-Fehler: ' . $e->getMessage());
-                $error = 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.';
+                $error = appendAdminError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.', $e);
             }
         }
     }
