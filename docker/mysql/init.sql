@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS projects (
     description TEXT NOT NULL,
     reason TEXT NOT NULL,
     status ENUM('Vorgeschlagen','In Besprechung','In Bearbeitung','Angenommen','Abgelehnt') DEFAULT 'Vorgeschlagen',
+    priority ENUM('Hoch','Mittel','Niedrig') DEFAULT NULL,
     is_anonymous TINYINT(1) DEFAULT 0,
     proposed_by INT DEFAULT NULL,
     decision_reason TEXT DEFAULT NULL,

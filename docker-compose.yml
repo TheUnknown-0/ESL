@@ -51,7 +51,8 @@ services:
       MYSQL_PASSWORD: ${DB_PASS:-geheimespasswort}
     volumes:
       - db-data:/var/lib/mysql
-      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/00_init.sql
+      - ./docker/mysql/migrations:/docker-entrypoint-initdb.d/migrations
     networks:
       - app-network
 
