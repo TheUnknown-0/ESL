@@ -1013,7 +1013,7 @@ foreach ($projects as $p) {
 
             // Ajax-Request
             function sendPrioritizeRequest(projectId, newPriority, cardEl, originColumn) {
-                fetch('/src/api/projects.php?action=prioritize', {
+                fetch('index.php?page=api-projects&action=prioritize', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
