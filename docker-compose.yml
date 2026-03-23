@@ -24,6 +24,7 @@ services:
       - APP_ENV=${APP_ENV:-production}
     networks:
       - app-network
+      - proxy_network
 
   web:
     image: nginx:stable
@@ -56,3 +57,5 @@ volumes:
 networks:
   app-network:
     driver: bridge
+  proxy_network:
+    external: true
