@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'prioritize') {
     }
 
     $projectId = isset($input['project_id']) ? (int)$input['project_id'] : 0;
-    $priority  = $input['priority'] ?? 'NULL_SENTINEL';
+    $priority  = array_key_exists('priority', $input) ? $input['priority'] : 'NULL_SENTINEL';
 
     // null explizit erlaubt (Karte in "Unpriorisiert" verschoben)
     if ($priority === null || $priority === 'null') {
