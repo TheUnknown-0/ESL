@@ -3,6 +3,7 @@
  * Navigationsseite
  * Zeigt alle aktiven Seiten als Kacheln/Buttons an.
  * Admin-Seiten werden nur für Admins angezeigt.
+ * "Einstellungen" erscheint nur als Knopf oben rechts, nicht als Kachel.
  */
 
 require_once __DIR__ . '/../includes/db.php';
@@ -17,10 +18,14 @@ requireLogin();
 
 require_once __DIR__ . '/../includes/theme.php';
 
-// Aktive Seiten aus der Datenbank laden
+// Aktive Seiten aus der Datenbank laden (ohne Einstellungen – wird als Button angezeigt)
 try {
     $db = getDB();
-    $stmt = $db->query('SELECT slug, label, icon, requires_admin FROM pages WHERE active = 1 ORDER BY sort_order ASC');
+    $stmt = $db->query(
+        "SELECT slug, label, icon, requires_admin FROM pages
+         WHERE active = 1 AND slug != 'einstellungen'
+         ORDER BY sort_order ASC"
+    );
     $pages = $stmt->fetchAll();
 } catch (Exception $e) {
     error_log('Navigation-Fehler: ' . $e->getMessage());
@@ -42,23 +47,27 @@ $visiblePages = array_filter($pages, function ($p) {
     <?php outputThemeHead(); ?>
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <div class="max-w-4xl mx-auto py-12 px-4">
-        <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">Navigation</h1>
-            <div class="flex items-center gap-4">
-                <span class="text-gray-600">Eingeloggt als: <strong><?= e($_SESSION['username'] ?? '') ?></strong></span>
+    <div class="max-w-4xl mx-auto py-8 px-4">
+        <!-- Kopfzeile -->
+        <div class="flex flex-wrap justify-between items-start gap-3 mb-8">
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Navigation</h1>
+                <p class="text-sm text-gray-600 mt-1">Eingeloggt als: <strong><?= e($_SESSION['username'] ?? '') ?></strong></p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
                 <a href="index.php?page=einstellungen"
-                   class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">
-                    ⚙️ Einstellungen
+                   class="bg-gray-200 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-300 text-sm flex items-center gap-1">
+                    ⚙️ <span class="hidden sm:inline">Einstellungen</span>
                 </a>
                 <a href="index.php?page=logout"
-                   class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 text-sm font-bold">
+                   class="bg-red-500 text-white px-3 py-2 rounded-md hover:bg-red-600 text-sm font-bold">
                     Abmelden
                 </a>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Seiten-Kacheln -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <?php foreach ($visiblePages as $p): ?>
                 <a href="index.php?page=<?= e($p['slug']) ?>"
                    class="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-200 text-center">

@@ -120,11 +120,11 @@ if (!in_array($activeTab, ['appearance', 'email'])) $activeTab = 'appearance';
 <body class="bg-gray-100 min-h-screen">
     <!-- Kopfzeile -->
     <header class="bg-white shadow">
-        <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-gray-800">Einstellungen</h1>
-            <div class="flex gap-3">
-                <a href="index.php?page=nav" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">← Navigation</a>
-                <a href="index.php?page=logout" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 text-sm">Abmelden</a>
+        <div class="max-w-4xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-2">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Einstellungen</h1>
+            <div class="flex flex-wrap gap-2">
+                <a href="index.php?page=nav" class="bg-gray-200 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-300 text-sm">← Navigation</a>
+                <a href="index.php?page=logout" class="bg-red-500 text-white px-3 py-2 rounded-md hover:bg-red-600 text-sm">Abmelden</a>
             </div>
         </div>
     </header>

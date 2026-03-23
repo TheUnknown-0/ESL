@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS projects (
     name VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
     reason TEXT NOT NULL,
-    status ENUM('Vorgeschlagen','In Besprechung','In Bearbeitung','Umgesetzt','Angenommen','Abgelehnt') DEFAULT 'Vorgeschlagen',
+    status ENUM('Vorgeschlagen','In Besprechung','In Bearbeitung','Angenommen','Abgelehnt') DEFAULT 'Vorgeschlagen',
     is_anonymous TINYINT(1) DEFAULT 0,
     proposed_by INT DEFAULT NULL,
     decision_reason TEXT DEFAULT NULL,
@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (proposed_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabelle: settings (globale Konfiguration)
+CREATE TABLE IF NOT EXISTS settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(100) NOT NULL UNIQUE,
+    setting_value TEXT DEFAULT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -64,6 +72,9 @@ INSERT INTO pages (slug, label, icon, requires_admin, sort_order) VALUES
     ('vorschlag',       'Vorschlag',       NULL, 0, 2),
     ('verwaltung',      'Verwaltung',      NULL, 1, 3),
     ('einstellungen',   'Einstellungen',   NULL, 0, 4);
+
+-- Globale Einstellungen
+INSERT INTO settings (setting_key, setting_value) VALUES ('mail_disabled', '0');
 
 -- Initialer Admin-Nutzer (Passwort: Admin123!)
 -- bcrypt-Hash für 'Admin123!' erzeugt mit password_hash('Admin123!', PASSWORD_BCRYPT)

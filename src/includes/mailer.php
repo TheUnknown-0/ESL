@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/db.php';
 
 /**
  * Sendet eine E-Mail via SMTP oder PHP mail()-Fallback.
@@ -14,8 +15,29 @@ require_once __DIR__ . '/../config.php';
  * @param string $body    Nachrichtentext
  * @return bool True bei Erfolg
  */
+/**
+ * Prüft, ob E-Mails global durch einen Admin deaktiviert wurden.
+ */
+function isMailGloballyDisabled(): bool
+{
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'mail_disabled'");
+        $stmt->execute();
+        $row = $stmt->fetch();
+        return $row && $row['setting_value'] === '1';
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
 function sendMail(string $to, string $subject, string $body): bool
 {
+    if (isMailGloballyDisabled()) {
+        error_log('E-Mail-Versand global deaktiviert. Nachricht an ' . $to . ' nicht gesendet.');
+        return false;
+    }
+
     if (SMTP_HOST !== '') {
         return sendMailSmtp($to, $subject, $body);
     }
