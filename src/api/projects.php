@@ -104,7 +104,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'prioritize') {
     } catch (Exception $e) {
         error_log('Prioritize-Fehler: ' . $e->getMessage());
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Interner Fehler']);
+        $response = ['success' => false, 'error' => 'Interner Fehler'];
+        if (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
+            $response['debug'] = get_class($e) . ': ' . $e->getMessage()
+                . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')';
+        }
+        echo json_encode($response);
     }
     exit;
 }
@@ -142,5 +147,10 @@ try {
 } catch (Exception $e) {
     error_log('API Projekte Fehler: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'Interner Fehler']);
+    $response = ['error' => 'Interner Fehler'];
+    if (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
+        $response['debug'] = get_class($e) . ': ' . $e->getMessage()
+            . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')';
+    }
+    echo json_encode($response);
 }

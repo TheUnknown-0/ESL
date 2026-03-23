@@ -95,3 +95,20 @@ function clearLoginAttempts(PDO $db, string $ip, string $username): void
     $stmt = $db->prepare('DELETE FROM login_attempts WHERE ip_address = ? AND username = ?');
     $stmt->execute([$ip, $username]);
 }
+
+/**
+ * Gibt eine Fehlermeldung zurück, die für Admins technische Debug-Details enthält.
+ * Reguläre Benutzer sehen nur die generische Meldung.
+ *
+ * @param string    $genericMessage Fehlermeldung für alle Benutzer
+ * @param Throwable $e              Geworfene Ausnahme
+ * @return string Fehlermeldung (mit Debug-Details für Admins)
+ */
+function appendAdminError(string $genericMessage, Throwable $e): string
+{
+    if (empty($_SESSION['is_admin']) || $_SESSION['is_admin'] != 1) {
+        return $genericMessage;
+    }
+    return $genericMessage . ' [Debug: ' . get_class($e) . ': ' . $e->getMessage()
+        . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')]';
+}

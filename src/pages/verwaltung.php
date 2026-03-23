@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 } catch (Exception $e) {
                     error_log('Projekt-Update-Fehler: ' . $e->getMessage());
-                    $error = 'Fehler beim Aktualisieren des Projekts.';
+                    $error = appendAdminError('Fehler beim Aktualisieren des Projekts.', $e);
                 }
             }
         }
@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = 'Vorschlag erfolgreich gelöscht.';
                 } catch (Exception $e) {
                     error_log('Projekt-Lösch-Fehler: ' . $e->getMessage());
-                    $error = 'Fehler beim Löschen des Vorschlags.';
+                    $error = appendAdminError('Fehler beim Löschen des Vorschlags.', $e);
                 }
             }
         }
@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $error = 'Benutzername existiert bereits.';
                     } else {
                         error_log('Nutzer-Fehler: ' . $e->getMessage());
-                        $error = 'Fehler beim Anlegen des Nutzers.';
+                        $error = appendAdminError('Fehler beim Anlegen des Nutzers.', $e);
                     }
                 }
             }
@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = 'Nutzer erfolgreich gelöscht.';
                 } catch (Exception $e) {
                     error_log('Nutzer-Lösch-Fehler: ' . $e->getMessage());
-                    $error = 'Fehler beim Löschen des Nutzers.';
+                    $error = appendAdminError('Fehler beim Löschen des Nutzers.', $e);
                 }
             }
         }
@@ -162,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = 'Passwort erfolgreich zurückgesetzt.';
                 } catch (Exception $e) {
                     error_log('Passwort-Reset-Fehler: ' . $e->getMessage());
-                    $error = 'Fehler beim Zurücksetzen des Passworts.';
+                    $error = appendAdminError('Fehler beim Zurücksetzen des Passworts.', $e);
                 }
             } else {
                 $error = 'Bitte geben Sie ein neues Passwort ein.';
@@ -181,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = 'E-Mail-Adresse erfolgreich aktualisiert.';
                 } catch (Exception $e) {
                     error_log('E-Mail-Update-Fehler: ' . $e->getMessage());
-                    $error = 'Fehler beim Aktualisieren der E-Mail-Adresse.';
+                    $error = appendAdminError('Fehler beim Aktualisieren der E-Mail-Adresse.', $e);
                 }
             } else {
                 $error = 'Bitte geben Sie eine gültige E-Mail-Adresse ein.';
@@ -199,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $success = 'E-Mail-Einstellung gespeichert.';
             } catch (Exception $e) {
                 error_log('Settings-Update-Fehler: ' . $e->getMessage());
-                $error = 'Fehler beim Speichern der Einstellung.';
+                $error = appendAdminError('Fehler beim Speichern der Einstellung.', $e);
             }
         }
     }
@@ -220,6 +220,7 @@ try {
 } catch (Exception $e) {
     error_log('Verwaltung Projekte Fehler: ' . $e->getMessage());
     $projects = [];
+    $error = appendAdminError('Fehler beim Laden der Projekte.', $e);
 }
 
 try {
@@ -228,6 +229,7 @@ try {
 } catch (Exception $e) {
     error_log('Verwaltung Nutzer Fehler: ' . $e->getMessage());
     $users = [];
+    $error = appendAdminError('Fehler beim Laden der Nutzerliste.', $e);
 }
 
 // Globale Mail-Einstellung laden

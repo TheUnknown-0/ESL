@@ -77,7 +77,11 @@ try {
 } catch (Exception $e) {
     error_log('Router-Fehler: ' . $e->getMessage());
     http_response_code(500);
-    echo 'Ein interner Fehler ist aufgetreten.';
+    $detail = (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1)
+        ? ' [Debug: ' . htmlspecialchars(get_class($e) . ': ' . $e->getMessage()
+            . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')', ENT_QUOTES, 'UTF-8') . ']'
+        : '';
+    echo 'Ein interner Fehler ist aufgetreten.' . $detail;
     exit;
 }
 
