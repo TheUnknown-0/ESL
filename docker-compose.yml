@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   app:
+    container_name: esl-app
     build:
       context: .
       dockerfile: Dockerfile
@@ -27,6 +28,7 @@ services:
       
 
   web:
+    container_name: esl-web
     image: nginx:stable
     ports:
       - "8080:80"
@@ -40,6 +42,7 @@ services:
       - proxy_network
 
   db:
+    container_name: esl-db
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASS:-geheimespasswort}
