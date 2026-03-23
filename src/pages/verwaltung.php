@@ -1013,6 +1013,11 @@ foreach ($projects as $p) {
 
             // Ajax-Request
             function sendPrioritizeRequest(projectId, newPriority, cardEl, originColumn) {
+                function revertCard() {
+                    originColumn.appendChild(cardEl);
+                    updateColumnCounts();
+                }
+
                 fetch('/src/api/projects.php?action=prioritize', {
                     method: 'POST',
                     headers: {
@@ -1024,22 +1029,27 @@ foreach ($projects as $p) {
                         priority: newPriority === 'Unpriorisiert' ? null : newPriority,
                     }),
                 })
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) {
+                        return r.text().then(text => {
+                            try { return JSON.parse(text); }
+                            catch { return { success: false, error: 'Server-Fehler (' + r.status + ')' }; }
+                        });
+                    }
+                    return r.json();
+                })
                 .then(data => {
                     if (data.success) {
                         showToast('✓ Priorität aktualisiert', 'success');
                         updateColumnCounts();
                     } else {
                         showToast('✗ ' + (data.error || 'Fehler'), 'error');
-                        // Karte zurücklegen
-                        originColumn.appendChild(cardEl);
-                        updateColumnCounts();
+                        revertCard();
                     }
                 })
                 .catch(() => {
-                    showToast('✗ Netzwerkfehler', 'error');
-                    originColumn.appendChild(cardEl);
-                    updateColumnCounts();
+                    showToast('✗ Netzwerkfehler – bitte Verbindung prüfen', 'error');
+                    revertCard();
                 });
             }
 
