@@ -112,3 +112,95 @@ function appendAdminError(string $genericMessage, Throwable $e): string
     return $genericMessage . ' [Debug: ' . get_class($e) . ': ' . $e->getMessage()
         . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')]';
 }
+
+/**
+ * Liefert die globalen Feature-Einstellungen (Kommentare & Upvotes) aus der
+ * settings-Tabelle, mit sicheren Defaults.
+ *
+ * @return array{
+ *   comments_enabled: bool,
+ *   comments_permission: string,
+ *   upvotes_enabled: bool,
+ *   upvotes_permission: string
+ * }
+ */
+function getFeatureSettings(PDO $db): array
+{
+    $defaults = [
+        'comments_enabled'    => true,
+        'comments_permission' => 'all',
+        'upvotes_enabled'     => true,
+        'upvotes_permission'  => 'all',
+    ];
+
+    try {
+        $stmt = $db->query(
+            "SELECT setting_key, setting_value FROM settings
+             WHERE setting_key IN ('comments_enabled','comments_permission','upvotes_enabled','upvotes_permission')"
+        );
+        $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    } catch (Exception $e) {
+        return $defaults;
+    }
+
+    $permNormalize = fn($v) => in_array($v, ['all', 'admin'], true) ? $v : 'all';
+
+    return [
+        'comments_enabled'    => isset($rows['comments_enabled'])    ? $rows['comments_enabled']    === '1' : $defaults['comments_enabled'],
+        'comments_permission' => isset($rows['comments_permission']) ? $permNormalize($rows['comments_permission']) : $defaults['comments_permission'],
+        'upvotes_enabled'     => isset($rows['upvotes_enabled'])     ? $rows['upvotes_enabled']     === '1' : $defaults['upvotes_enabled'],
+        'upvotes_permission'  => isset($rows['upvotes_permission'])  ? $permNormalize($rows['upvotes_permission'])  : $defaults['upvotes_permission'],
+    ];
+}
+
+/**
+ * Wendet Projekt-spezifische Overrides auf die globalen Einstellungen an.
+ * Regel: Abgelehnte Projekte können nicht upgevotet werden.
+ *
+ * @param array $project         Projektzeile (Spalten: status, comments_enabled, comments_permission, upvotes_enabled, upvotes_permission)
+ * @param array $globalSettings  Rückgabe von getFeatureSettings()
+ */
+function resolveProjectFeatures(array $project, array $globalSettings): array
+{
+    $result = $globalSettings;
+
+    if (array_key_exists('comments_enabled', $project) && $project['comments_enabled'] !== null) {
+        $result['comments_enabled'] = (int)$project['comments_enabled'] === 1;
+    }
+    if (!empty($project['comments_permission'])) {
+        $result['comments_permission'] = $project['comments_permission'] === 'admin' ? 'admin' : 'all';
+    }
+    if (array_key_exists('upvotes_enabled', $project) && $project['upvotes_enabled'] !== null) {
+        $result['upvotes_enabled'] = (int)$project['upvotes_enabled'] === 1;
+    }
+    if (!empty($project['upvotes_permission'])) {
+        $result['upvotes_permission'] = $project['upvotes_permission'] === 'admin' ? 'admin' : 'all';
+    }
+
+    // Harte Regel: abgelehnte Projekte erlauben keine Upvotes
+    if (($project['status'] ?? '') === 'Abgelehnt') {
+        $result['upvotes_enabled'] = false;
+    }
+
+    return $result;
+}
+
+/**
+ * Prüft, ob der aktuelle Nutzer kommentieren darf.
+ */
+function canComment(array $features, bool $isAdmin): bool
+{
+    if (!$features['comments_enabled']) return false;
+    if ($features['comments_permission'] === 'admin' && !$isAdmin) return false;
+    return true;
+}
+
+/**
+ * Prüft, ob der aktuelle Nutzer upvoten darf.
+ */
+function canUpvote(array $features, bool $isAdmin): bool
+{
+    if (!$features['upvotes_enabled']) return false;
+    if ($features['upvotes_permission'] === 'admin' && !$isAdmin) return false;
+    return true;
+}
