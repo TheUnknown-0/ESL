@@ -53,6 +53,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $status       = $_POST['status'] ?? '';
             $decisionReason = trim($_POST['decision_reason'] ?? '');
 
+            // Feature-Overrides: "" = Standard (NULL), "1"/"0" für Toggles, "all"/"admin" für Permission
+            $toggleOverride = function($v): ?int {
+                if ($v === '1') return 1;
+                if ($v === '0') return 0;
+                return null;
+            };
+            $permOverride = function($v): ?string {
+                if ($v === 'all')   return 'all';
+                if ($v === 'admin') return 'admin';
+                return null;
+            };
+            $commentsEnabledOv    = $toggleOverride($_POST['comments_enabled_override']    ?? '');
+            $commentsPermissionOv = $permOverride ($_POST['comments_permission_override'] ?? '');
+            $upvotesEnabledOv     = $toggleOverride($_POST['upvotes_enabled_override']     ?? '');
+            $upvotesPermissionOv  = $permOverride ($_POST['upvotes_permission_override']  ?? '');
+
             $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Angenommen', 'Abgelehnt'];
             if ($name === '' || $description === '' || $reason === '' || !in_array($status, $validStatuses)) {
                 $error = 'Bitte füllen Sie alle Pflichtfelder aus.';
@@ -69,9 +85,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $stmt = $db->prepare(
                         'UPDATE projects SET name = ?, description = ?, reason = ?, status = ?,
-                         decision_reason = ?, decided_by = ?, updated_at = NOW() WHERE id = ?'
+                         decision_reason = ?, decided_by = ?,
+                         comments_enabled = ?, comments_permission = ?,
+                         upvotes_enabled = ?, upvotes_permission = ?,
+                         updated_at = NOW() WHERE id = ?'
                     );
-                    $stmt->execute([$name, $description, $reason, $status, $decisionReasonValue, $decidedByValue, $projectId]);
+                    $stmt->execute([
+                        $name, $description, $reason, $status,
+                        $decisionReasonValue, $decidedByValue,
+                        $commentsEnabledOv, $commentsPermissionOv,
+                        $upvotesEnabledOv,  $upvotesPermissionOv,
+                        $projectId,
+                    ]);
                     $success = 'Projekt erfolgreich aktualisiert.';
 
                     if ($oldProject && in_array($status, ['Angenommen', 'Abgelehnt'])
@@ -202,6 +227,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = appendAdminError('Fehler beim Speichern der Einstellung.', $e);
             }
         }
+
+        // --- Feature-Einstellungen (Kommentare & Upvotes) ---
+        if ($action === 'update_feature_settings') {
+            $commentsEnabled    = isset($_POST['comments_enabled']) ? '1' : '0';
+            $upvotesEnabled     = isset($_POST['upvotes_enabled'])  ? '1' : '0';
+            $commentsPermission = ($_POST['comments_permission'] ?? 'all') === 'admin' ? 'admin' : 'all';
+            $upvotesPermission  = ($_POST['upvotes_permission']  ?? 'all') === 'admin' ? 'admin' : 'all';
+            try {
+                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value)
+                                      VALUES (?, ?)
+                                      ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                $stmt->execute(['comments_enabled',    $commentsEnabled]);
+                $stmt->execute(['comments_permission', $commentsPermission]);
+                $stmt->execute(['upvotes_enabled',     $upvotesEnabled]);
+                $stmt->execute(['upvotes_permission',  $upvotesPermission]);
+                $success = 'Feature-Einstellungen gespeichert.';
+            } catch (Exception $e) {
+                error_log('Feature-Settings-Update-Fehler: ' . $e->getMessage());
+                $error = appendAdminError('Fehler beim Speichern der Feature-Einstellungen.', $e);
+            }
+        }
     }
 }
 
@@ -240,6 +286,9 @@ try {
 } catch (Exception $e) {
     $mailDisabled = false;
 }
+
+// Globale Feature-Einstellungen (Kommentare & Upvotes) laden
+$featureSettings = getFeatureSettings($db);
 
 $validStatuses = ['Vorgeschlagen', 'In Besprechung', 'In Bearbeitung', 'Angenommen', 'Abgelehnt'];
 
@@ -576,6 +625,73 @@ foreach ($projects as $p) {
                     </button>
                 </form>
             </div>
+
+            <!-- Feature-Einstellungen: Kommentare & Upvotes -->
+            <div class="bg-white rounded-lg shadow-md p-5 mt-6">
+                <h2 class="text-base font-bold text-gray-800 mb-4">Interaktions-Einstellungen</h2>
+                <p class="text-xs text-gray-500 mb-4">
+                    Diese Einstellungen sind die globalen Standardwerte. Einzelne Projekte können im Bearbeiten-Dialog
+                    abweichend konfiguriert werden. Abgelehnte Projekte können grundsätzlich nicht upgevotet werden.
+                </p>
+                <form method="POST" action="index.php?page=verwaltung">
+                    <?= csrfField() ?>
+                    <input type="hidden" name="action" value="update_feature_settings">
+
+                    <!-- Kommentare -->
+                    <div class="border border-gray-200 rounded-lg p-4 mb-4">
+                        <div class="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <h3 class="font-semibold text-gray-800">Kommentare</h3>
+                                <p class="text-sm text-gray-500 mt-1">
+                                    Nutzer können Projekte kommentieren.
+                                </p>
+                            </div>
+                            <label class="flex items-center gap-2 cursor-pointer shrink-0">
+                                <input type="checkbox" name="comments_enabled" value="1"
+                                       <?= $featureSettings['comments_enabled'] ? 'checked' : '' ?>
+                                       class="w-5 h-5 rounded">
+                                <span class="text-sm font-medium text-gray-700">Aktiv</span>
+                            </label>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-sm text-gray-700 mb-1">Wer darf kommentieren?</label>
+                            <select name="comments_permission" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                                <option value="all"   <?= $featureSettings['comments_permission'] === 'all'   ? 'selected' : '' ?>>Alle Nutzer</option>
+                                <option value="admin" <?= $featureSettings['comments_permission'] === 'admin' ? 'selected' : '' ?>>Nur Verwaltung</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Upvotes -->
+                    <div class="border border-gray-200 rounded-lg p-4 mb-4">
+                        <div class="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <h3 class="font-semibold text-gray-800">Upvotes</h3>
+                                <p class="text-sm text-gray-500 mt-1">
+                                    Nutzer können Projekte mit einer Stimme pro Projekt bewerten.
+                                </p>
+                            </div>
+                            <label class="flex items-center gap-2 cursor-pointer shrink-0">
+                                <input type="checkbox" name="upvotes_enabled" value="1"
+                                       <?= $featureSettings['upvotes_enabled'] ? 'checked' : '' ?>
+                                       class="w-5 h-5 rounded">
+                                <span class="text-sm font-medium text-gray-700">Aktiv</span>
+                            </label>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-sm text-gray-700 mb-1">Wer darf upvoten?</label>
+                            <select name="upvotes_permission" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                                <option value="all"   <?= $featureSettings['upvotes_permission'] === 'all'   ? 'selected' : '' ?>>Alle Nutzer</option>
+                                <option value="admin" <?= $featureSettings['upvotes_permission'] === 'admin' ? 'selected' : '' ?>>Nur Verwaltung</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-bold text-sm">
+                        Interaktions-Einstellungen speichern
+                    </button>
+                </form>
+            </div>
         </div>
         <!-- ============================================================ -->
         <!-- Priorisierung (Kanban) -->
@@ -702,6 +818,55 @@ foreach ($projects as $p) {
                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"></textarea>
                     </div>
 
+                    <!-- Feature-Overrides -->
+                    <div class="border border-gray-200 rounded-md p-3 mb-4 bg-gray-50">
+                        <p class="text-xs font-bold text-gray-700 mb-2">
+                            Überschreibung pro Projekt
+                            <span class="font-normal text-gray-500">(Leer = globale Standardeinstellung)</span>
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Kommentare</label>
+                                <select name="comments_enabled_override" id="edit-comments-enabled-override"
+                                        class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    <option value="">Standard</option>
+                                    <option value="1">An</option>
+                                    <option value="0">Aus</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Kommentieren dürfen</label>
+                                <select name="comments_permission_override" id="edit-comments-permission-override"
+                                        class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    <option value="">Standard</option>
+                                    <option value="all">Alle Nutzer</option>
+                                    <option value="admin">Nur Verwaltung</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Upvotes</label>
+                                <select name="upvotes_enabled_override" id="edit-upvotes-enabled-override"
+                                        class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    <option value="">Standard</option>
+                                    <option value="1">An</option>
+                                    <option value="0">Aus</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Upvoten dürfen</label>
+                                <select name="upvotes_permission_override" id="edit-upvotes-permission-override"
+                                        class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                    <option value="">Standard</option>
+                                    <option value="all">Alle Nutzer</option>
+                                    <option value="admin">Nur Verwaltung</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">
+                            Hinweis: Abgelehnte Projekte können nie upgevotet werden (harte Sperre).
+                        </p>
+                    </div>
+
                     <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-bold">
                         Speichern
                     </button>
@@ -786,13 +951,18 @@ foreach ($projects as $p) {
     <script>
         // Projektdaten für das Bearbeiten-Modal
         const projectsData = <?= json_encode(array_map(function($p) {
+            $toggleToString = fn($v) => $v === null ? '' : ((int)$v === 1 ? '1' : '0');
             return [
-                'id'              => (int)$p['id'],
-                'name'            => $p['name'],
-                'description'     => $p['description'],
-                'reason'          => $p['reason'],
-                'status'          => $p['status'],
-                'decision_reason' => $p['decision_reason'] ?? '',
+                'id'                           => (int)$p['id'],
+                'name'                         => $p['name'],
+                'description'                  => $p['description'],
+                'reason'                       => $p['reason'],
+                'status'                       => $p['status'],
+                'decision_reason'              => $p['decision_reason'] ?? '',
+                'comments_enabled_override'    => $toggleToString($p['comments_enabled'] ?? null),
+                'comments_permission_override' => $p['comments_permission'] ?? '',
+                'upvotes_enabled_override'     => $toggleToString($p['upvotes_enabled']  ?? null),
+                'upvotes_permission_override'  => $p['upvotes_permission']  ?? '',
             ];
         }, $projects), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
@@ -898,6 +1068,11 @@ foreach ($projects as $p) {
             document.getElementById('edit-project-reason').value          = project.reason;
             document.getElementById('edit-project-status').value          = project.status;
             document.getElementById('edit-project-decision-reason').value = project.decision_reason || '';
+
+            document.getElementById('edit-comments-enabled-override').value    = project.comments_enabled_override    || '';
+            document.getElementById('edit-comments-permission-override').value = project.comments_permission_override || '';
+            document.getElementById('edit-upvotes-enabled-override').value     = project.upvotes_enabled_override     || '';
+            document.getElementById('edit-upvotes-permission-override').value  = project.upvotes_permission_override  || '';
 
             toggleDecisionReason();
             document.getElementById('edit-project-modal').classList.remove('hidden');
@@ -1080,14 +1255,44 @@ foreach ($projects as $p) {
                 });
             });
 
-            // Live-Suchfilter
+            // Live-Suchfilter: Treffer in jeder Spalte nach oben, Rest bleibt ausgegraut.
+            // Beim ersten Aufruf wird die Ursprungsreihenfolge pro Karte festgehalten,
+            // damit ein leerer Suchbegriff die Original-Sortierung wiederherstellt.
             const searchInput = document.getElementById('prioritization-search');
             if (searchInput) {
+                // Ursprungsreihenfolge pro Karte merken (einmalig)
+                document.querySelectorAll('.priority-column').forEach(column => {
+                    Array.from(column.querySelectorAll('.draggable-project-card')).forEach((card, idx) => {
+                        if (!('origIndex' in card.dataset)) card.dataset.origIndex = String(idx);
+                    });
+                });
+
                 searchInput.addEventListener('input', function () {
-                    const term = this.value.toLowerCase();
-                    document.querySelectorAll('.draggable-project-card').forEach(card => {
-                        const text = card.textContent.toLowerCase();
-                        card.style.opacity = (!term || text.includes(term)) ? '1' : '0.2';
+                    const term = this.value.toLowerCase().trim();
+                    document.querySelectorAll('.priority-column').forEach(column => {
+                        const cards = Array.from(column.querySelectorAll('.draggable-project-card'));
+                        if (!term) {
+                            // Ursprungsreihenfolge wiederherstellen, Opacity zurücksetzen
+                            cards
+                                .sort((a, b) => parseInt(a.dataset.origIndex, 10) - parseInt(b.dataset.origIndex, 10))
+                                .forEach(card => {
+                                    card.style.opacity = '1';
+                                    column.appendChild(card);
+                                });
+                            return;
+                        }
+                        // Treffer nach oben, Nicht-Treffer ausgrauen und nach unten
+                        cards
+                            .map(card => ({
+                                card,
+                                match: card.textContent.toLowerCase().includes(term),
+                                orig:  parseInt(card.dataset.origIndex, 10),
+                            }))
+                            .sort((a, b) => (a.match === b.match) ? (a.orig - b.orig) : (a.match ? -1 : 1))
+                            .forEach(({ card, match }) => {
+                                card.style.opacity = match ? '1' : '0.2';
+                                column.appendChild(card);
+                            });
                     });
                 });
             }

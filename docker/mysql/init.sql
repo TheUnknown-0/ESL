@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS projects (
     reason TEXT NOT NULL,
     status ENUM('Vorgeschlagen','In Besprechung','In Bearbeitung','Angenommen','Abgelehnt') DEFAULT 'Vorgeschlagen',
     priority ENUM('Hoch','Mittel','Niedrig') DEFAULT NULL,
+    comments_enabled TINYINT(1) DEFAULT NULL,
+    comments_permission ENUM('all','admin') DEFAULT NULL,
+    upvotes_enabled TINYINT(1) DEFAULT NULL,
+    upvotes_permission ENUM('all','admin') DEFAULT NULL,
     is_anonymous TINYINT(1) DEFAULT 0,
     proposed_by INT DEFAULT NULL,
     decision_reason TEXT DEFAULT NULL,
@@ -75,7 +79,35 @@ INSERT INTO pages (slug, label, icon, requires_admin, sort_order) VALUES
     ('einstellungen',   'Einstellungen',   NULL, 0, 4);
 
 -- Globale Einstellungen
-INSERT INTO settings (setting_key, setting_value) VALUES ('mail_disabled', '0');
+INSERT INTO settings (setting_key, setting_value) VALUES
+    ('mail_disabled',       '0'),
+    ('comments_enabled',    '1'),
+    ('comments_permission', 'all'),
+    ('upvotes_enabled',     '1'),
+    ('upvotes_permission',  'all');
+
+-- Tabelle: project_comments
+CREATE TABLE IF NOT EXISTS project_comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    project_id INT NOT NULL,
+    user_id    INT DEFAULT NULL,
+    content    TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE SET NULL,
+    INDEX idx_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabelle: project_upvotes (UNIQUE ⇒ 1 Stimme pro Nutzer/Projekt)
+CREATE TABLE IF NOT EXISTS project_upvotes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    project_id INT NOT NULL,
+    user_id    INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_project_user (project_id, user_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Initialer Admin-Nutzer (Passwort: Admin123!)
 -- bcrypt-Hash für 'Admin123!' erzeugt mit password_hash('Admin123!', PASSWORD_BCRYPT)
