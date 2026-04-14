@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NULL,
     is_admin TINYINT(1) DEFAULT 0,
-    email_notifications TINYINT(1) DEFAULT 1,
+    email_notifications TINYINT(1) DEFAULT 0,
     theme ENUM('light','dark') DEFAULT 'light',
     style ENUM('default','anthropic') DEFAULT 'default',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP

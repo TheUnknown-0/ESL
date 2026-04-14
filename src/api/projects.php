@@ -389,6 +389,27 @@ try {
         }
     }
 
+    // Upvoter-Details pro Projekt (nur für Admins)
+    $upvotersByProject = [];
+    if ($isAdminUser && $projectIds) {
+        $placeholders = implode(',', array_fill(0, count($projectIds), '?'));
+        $stmt = $db->prepare(
+            "SELECT pu.project_id, pu.user_id, u.username, pu.created_at
+             FROM project_upvotes pu
+             LEFT JOIN users u ON pu.user_id = u.id
+             WHERE pu.project_id IN ($placeholders)
+             ORDER BY pu.created_at ASC"
+        );
+        $stmt->execute($projectIds);
+        foreach ($stmt->fetchAll() as $row) {
+            $upvotersByProject[(int)$row['project_id']][] = [
+                'user_id'    => (int)$row['user_id'],
+                'username'   => $row['username'] ?? 'Unbekannt',
+                'created_at' => $row['created_at'],
+            ];
+        }
+    }
+
     // Kommentare pro Projekt (ein Query, in PHP gruppiert)
     $commentsByProject = [];
     if ($projectIds) {
@@ -411,7 +432,7 @@ try {
         }
     }
 
-    $result = array_map(function ($p) use ($globalSettings, $isAdminUser, $upvoteCounts, $userUpvoted, $commentsByProject) {
+    $result = array_map(function ($p) use ($globalSettings, $isAdminUser, $upvoteCounts, $userUpvoted, $commentsByProject, $upvotersByProject) {
         $id       = (int)$p['id'];
         $features = resolveProjectFeatures($p, $globalSettings);
         return [
@@ -435,6 +456,7 @@ try {
             ],
             'upvote_count'     => $upvoteCounts[$id] ?? 0,
             'user_has_upvoted' => !empty($userUpvoted[$id]),
+            'upvoters'         => $isAdminUser ? ($upvotersByProject[$id] ?? []) : null,
             'comments'         => $commentsByProject[$id] ?? [],
         ];
     }, $projects);
