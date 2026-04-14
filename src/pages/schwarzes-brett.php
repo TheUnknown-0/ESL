@@ -218,6 +218,7 @@ try {
                             </button>
                             <span id="modal-upvote-hint" class="text-xs text-gray-500"></span>
                         </div>
+                        <div id="modal-upvoters-list" class="hidden mt-2"></div>
                     </div>
 
                     <!-- Kommentare -->
@@ -353,10 +354,11 @@ try {
                         '👍 <span>' + project.upvote_count + '</span></button>')
                     : '';
 
-                const commentsVisible = f.comments_enabled;
+                const commentCount = (project.comments || []).length;
+                const commentsVisible = f.comments_enabled || commentCount > 0;
                 const commentBadge = commentsVisible
                     ? ('<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300">' +
-                        '💬 ' + (project.comments || []).length + '</span>')
+                        '💬 ' + commentCount + '</span>')
                     : '';
 
                 return '<div class="project-card bg-white rounded-lg shadow-md border-l-4 ' + borderColor +
@@ -515,14 +517,29 @@ try {
                 upvoteSection.classList.add('hidden');
             }
 
+            // Upvoter-Liste (nur für Admins sichtbar)
+            const upvotersBox = document.getElementById('modal-upvoters-list');
+            if (IS_ADMIN && f.upvotes_enabled && Array.isArray(project.upvoters) && project.upvoters.length > 0) {
+                upvotersBox.classList.remove('hidden');
+                upvotersBox.innerHTML = '<div class="text-xs font-semibold text-gray-700 mb-1">Upgevotet von:</div>' +
+                    '<ul class="text-xs text-gray-600 list-disc list-inside max-h-32 overflow-y-auto">' +
+                    project.upvoters.map(u => '<li>' + escapeHtml(u.username || 'Unbekannt') + '</li>').join('') +
+                    '</ul>';
+            } else {
+                upvotersBox.classList.add('hidden');
+                upvotersBox.innerHTML = '';
+            }
+
             // Kommentare
             const commentsSection = document.getElementById('modal-comments-section');
-            if (f.comments_enabled) {
+            const commentCount = (project.comments || []).length;
+            // Sichtbar, wenn Feature aktiv ODER bestehende Kommentare vorhanden sind
+            if (f.comments_enabled || commentCount > 0) {
                 commentsSection.classList.remove('hidden');
-                document.getElementById('modal-comments-count').textContent = (project.comments || []).length;
+                document.getElementById('modal-comments-count').textContent = commentCount;
 
                 const list = document.getElementById('modal-comments-list');
-                if (!project.comments || project.comments.length === 0) {
+                if (commentCount === 0) {
                     list.innerHTML = '<p class="text-xs text-gray-500 italic">Noch keine Kommentare.</p>';
                 } else {
                     list.innerHTML = project.comments.map(c => {
@@ -543,15 +560,19 @@ try {
 
                 const form = document.getElementById('modal-comment-form');
                 const hint = document.getElementById('modal-comments-hint');
-                if (f.can_comment) {
+                if (f.comments_enabled && f.can_comment) {
                     form.classList.remove('hidden');
                     hint.classList.add('hidden');
                 } else {
                     form.classList.add('hidden');
                     hint.classList.remove('hidden');
-                    hint.textContent = f.comments_permission === 'admin'
-                        ? 'Nur die Verwaltung darf kommentieren.'
-                        : 'Kommentieren ist für dieses Projekt nicht erlaubt.';
+                    if (!f.comments_enabled) {
+                        hint.textContent = 'Neue Kommentare sind für diesen Vorschlag deaktiviert.';
+                    } else if (f.comments_permission === 'admin') {
+                        hint.textContent = 'Nur die Verwaltung darf kommentieren.';
+                    } else {
+                        hint.textContent = 'Kommentieren ist für dieses Projekt nicht erlaubt.';
+                    }
                 }
             } else {
                 commentsSection.classList.add('hidden');

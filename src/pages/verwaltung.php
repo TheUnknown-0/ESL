@@ -135,7 +135,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $isAdmin            = isset($_POST['is_admin']) ? 1 : 0;
             $emailNotifications = isset($_POST['email_notifications']) ? 1 : 0;
 
-            if ($username === '' || $email === '' || $password === '') {
+            // E-Mail ist optional; ohne E-Mail keine Benachrichtigungen möglich
+            $emailValue = $email === '' ? null : $email;
+            if ($emailValue === null) {
+                $emailNotifications = 0;
+            }
+
+            if ($username === '' || $password === '') {
                 $error = 'Bitte füllen Sie alle Pflichtfelder aus.';
             } else {
                 try {
@@ -144,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'INSERT INTO users (username, password_hash, email, is_admin, email_notifications)
                          VALUES (?, ?, ?, ?, ?)'
                     );
-                    $stmt->execute([$username, $hash, $email, $isAdmin, $emailNotifications]);
+                    $stmt->execute([$username, $hash, $emailValue, $isAdmin, $emailNotifications]);
                     $success = 'Nutzer erfolgreich angelegt.';
                 } catch (PDOException $e) {
                     if ($e->getCode() == '23000') {
@@ -194,22 +200,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // --- E-Mail bearbeiten ---
+        // --- E-Mail bearbeiten (leer = entfernen) ---
         if ($action === 'update_email') {
             $userId   = (int)($_POST['user_id'] ?? 0);
             $newEmail = trim($_POST['new_email'] ?? '');
+            $finalEmail = $newEmail === '' ? null : $newEmail;
 
-            if ($userId > 0 && $newEmail !== '') {
+            if ($userId > 0) {
                 try {
-                    $stmt = $db->prepare('UPDATE users SET email = ? WHERE id = ?');
-                    $stmt->execute([$newEmail, $userId]);
-                    $success = 'E-Mail-Adresse erfolgreich aktualisiert.';
+                    // Ohne E-Mail werden Benachrichtigungen automatisch deaktiviert
+                    if ($finalEmail === null) {
+                        $stmt = $db->prepare('UPDATE users SET email = NULL, email_notifications = 0 WHERE id = ?');
+                        $stmt->execute([$userId]);
+                        $success = 'E-Mail-Adresse entfernt.';
+                    } else {
+                        $stmt = $db->prepare('UPDATE users SET email = ? WHERE id = ?');
+                        $stmt->execute([$finalEmail, $userId]);
+                        $success = 'E-Mail-Adresse erfolgreich aktualisiert.';
+                    }
                 } catch (Exception $e) {
                     error_log('E-Mail-Update-Fehler: ' . $e->getMessage());
                     $error = appendAdminError('Fehler beim Aktualisieren der E-Mail-Adresse.', $e);
                 }
             } else {
-                $error = 'Bitte geben Sie eine gültige E-Mail-Adresse ein.';
+                $error = 'Ungültige Benutzer-ID.';
             }
         }
 
@@ -257,10 +271,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 try {
     $stmtProjects = $db->query(
-        'SELECT p.*, u.username AS proposed_by_name
+        "SELECT p.*, u.username AS proposed_by_name,
+                COALESCE(uv.upvote_count, 0) AS upvote_count,
+                uv.upvoter_names
          FROM projects p
          LEFT JOIN users u ON p.proposed_by = u.id
-         ORDER BY p.created_at DESC'
+         LEFT JOIN (
+             SELECT pu.project_id,
+                    COUNT(*) AS upvote_count,
+                    GROUP_CONCAT(DISTINCT uu.username ORDER BY uu.username SEPARATOR ', ') AS upvoter_names
+             FROM project_upvotes pu
+             LEFT JOIN users uu ON uu.id = pu.user_id
+             GROUP BY pu.project_id
+         ) uv ON uv.project_id = p.id
+         ORDER BY p.created_at DESC"
     );
     $projects = $stmtProjects->fetchAll();
 } catch (Exception $e) {
@@ -411,6 +435,7 @@ foreach ($projects as $p) {
                                 <th class="px-3 py-3 font-semibold text-gray-700">Status</th>
                                 <th class="px-3 py-3 font-semibold text-gray-700 hidden sm:table-cell">Vorgeschlagen von</th>
                                 <th class="px-3 py-3 font-semibold text-gray-700 hidden md:table-cell">Datum</th>
+                                <th class="px-3 py-3 font-semibold text-gray-700">Upvotes</th>
                                 <th class="px-3 py-3 font-semibold text-gray-700">Aktionen</th>
                             </tr>
                         </thead>
@@ -433,6 +458,19 @@ foreach ($projects as $p) {
                                         <?= e(substr($project['created_at'], 0, 10)) ?>
                                     </td>
                                     <td class="px-3 py-3">
+                                        <?php $upCount = (int)($project['upvote_count'] ?? 0); ?>
+                                        <?php if ($upCount > 0 && !empty($project['upvoter_names'])): ?>
+                                            <details class="text-xs text-gray-600">
+                                                <summary class="cursor-pointer select-none whitespace-nowrap">👍 <?= $upCount ?></summary>
+                                                <div class="mt-1 text-gray-500 max-h-32 overflow-y-auto max-w-xs">
+                                                    <?= e($project['upvoter_names']) ?>
+                                                </div>
+                                            </details>
+                                        <?php else: ?>
+                                            <span class="text-xs text-gray-400 whitespace-nowrap">👍 <?= $upCount ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="px-3 py-3">
                                         <div class="flex flex-wrap gap-1">
                                             <button onclick="openEditProject(<?= (int)$project['id'] ?>)"
                                                     class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 whitespace-nowrap">
@@ -449,7 +487,7 @@ foreach ($projects as $p) {
 
                             <?php if (empty($projects)): ?>
                                 <tr id="projects-empty">
-                                    <td colspan="5" class="px-4 py-6 text-center text-gray-500">Keine Projekte vorhanden.</td>
+                                    <td colspan="6" class="px-4 py-6 text-center text-gray-500">Keine Projekte vorhanden.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -478,8 +516,10 @@ foreach ($projects as $p) {
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-1">E-Mail *</label>
-                        <input type="email" name="email" required
+                        <label class="block text-sm font-bold text-gray-700 mb-1">
+                            E-Mail <span class="text-gray-400 text-xs font-normal">(optional)</span>
+                        </label>
+                        <input type="email" name="email"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
@@ -493,7 +533,7 @@ foreach ($projects as $p) {
                             <span class="text-sm text-gray-700">Admin</span>
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" name="email_notifications" value="1" checked class="w-4 h-4">
+                            <input type="checkbox" name="email_notifications" value="1" class="w-4 h-4">
                             <span class="text-sm text-gray-700">E-Mail-Benachrichtigungen</span>
                         </label>
                         <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-bold text-sm">
@@ -547,7 +587,7 @@ foreach ($projects as $p) {
                                 <tr data-username="<?= e(strtolower($user['username'])) ?>"
                                     data-is-admin="<?= (int)$user['is_admin'] ?>">
                                     <td class="px-3 py-3 font-medium"><?= e($user['username']) ?></td>
-                                    <td class="px-3 py-3 text-gray-600 hidden sm:table-cell"><?= e($user['email']) ?></td>
+                                    <td class="px-3 py-3 text-gray-600 hidden sm:table-cell"><?= e($user['email'] ?: '—') ?></td>
                                     <td class="px-3 py-3">
                                         <?= $user['is_admin']
                                             ? '<span class="text-green-600 font-bold">Ja</span>'
@@ -564,7 +604,7 @@ foreach ($projects as $p) {
                                                     class="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 whitespace-nowrap">
                                                 Passwort
                                             </button>
-                                            <button onclick="openUpdateEmail(<?= (int)$user['id'] ?>, '<?= e(addslashes($user['username'])) ?>', '<?= e(addslashes($user['email'])) ?>')"
+                                            <button onclick="openUpdateEmail(<?= (int)$user['id'] ?>, '<?= e(addslashes($user['username'])) ?>', '<?= e(addslashes($user['email'] ?? '')) ?>')"
                                                     class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 whitespace-nowrap">
                                                 E-Mail
                                             </button>
@@ -711,8 +751,8 @@ foreach ($projects as $p) {
                 />
             </div>
 
-            <!-- Kanban-Spalten -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Kanban-Spalten (Desktop: 4 Spalten, Mobile: Stack mit Collapsible + Dropdown) -->
+            <div id="priority-board" class="flex flex-col gap-3 md:grid md:grid-cols-4 md:gap-4">
 
                 <?php
                 $columnConfig = [
@@ -726,34 +766,52 @@ foreach ($projects as $p) {
                     $cards = $prioProjects[$colName];
                     $count = count($cards);
                 ?>
-                <div class="<?= $cfg['bg'] ?> rounded-lg p-4 border-2 <?= $cfg['border'] ?>">
-                    <h3 class="font-bold text-lg <?= $cfg['hdr'] ?> mb-4 flex items-center gap-2">
+                <div class="priority-category <?= $cfg['bg'] ?> rounded-lg p-4 border-2 <?= $cfg['border'] ?>"
+                     data-category="<?= e($colName) ?>">
+                    <button type="button"
+                            class="priority-header w-full flex items-center gap-2 font-bold text-lg <?= $cfg['hdr'] ?> mb-4 md:cursor-default md:pointer-events-none"
+                            onclick="togglePriorityCategory(this)">
+                        <span class="priority-chevron md:hidden text-base transition-transform">▼</span>
                         <?= $cfg['emoji'] ?> <?= e($colName) ?>
-                        <span class="text-sm <?= $cfg['cnt'] ?> px-2 py-0.5 rounded"><?= $count ?></span>
-                    </h3>
-                    <div
-                        class="priority-column min-h-40 bg-white rounded border-2 border-dashed <?= $cfg['drop'] ?> p-2 space-y-2"
-                        data-priority="<?= e($colName) ?>"
-                    >
-                        <?php foreach ($cards as $card):
-                            $statusSlug = strtolower(str_replace(' ', '-', $card['status']));
-                        ?>
+                        <span class="text-sm <?= $cfg['cnt'] ?> px-2 py-0.5 rounded priority-count"><?= $count ?></span>
+                    </button>
+                    <div class="priority-body">
                         <div
-                            class="draggable-project-card p-3 bg-white border border-gray-200 rounded cursor-move hover:shadow-md transition select-none"
-                            data-project-id="<?= (int)$card['id'] ?>"
-                            draggable="true"
+                            class="priority-column min-h-40 bg-white rounded border-2 border-dashed <?= $cfg['drop'] ?> p-2 space-y-2"
+                            data-priority="<?= e($colName) ?>"
                         >
-                            <h4 class="font-semibold text-sm leading-snug"><?= e($card['name']) ?></h4>
-                            <?php if ($card['description']): ?>
-                            <p class="text-xs text-gray-500 mt-1 line-clamp-2"><?= e(mb_strimwidth($card['description'], 0, 100, '…')) ?></p>
-                            <?php endif; ?>
-                            <div class="mt-2">
-                                <span class="text-xs px-2 py-0.5 rounded-full font-medium status-badge-<?= e($statusSlug) ?>">
-                                    <?= e($card['status']) ?>
-                                </span>
+                            <?php foreach ($cards as $card):
+                                $statusSlug = strtolower(str_replace(' ', '-', $card['status']));
+                                $upvoteCount = (int)($card['upvote_count'] ?? 0);
+                            ?>
+                            <div
+                                class="draggable-project-card p-3 bg-white border border-gray-200 rounded md:cursor-move hover:shadow-md transition select-none"
+                                data-project-id="<?= (int)$card['id'] ?>"
+                                draggable="true"
+                            >
+                                <h4 class="font-semibold text-sm leading-snug"><?= e($card['name']) ?></h4>
+                                <?php if ($card['description']): ?>
+                                <p class="text-xs text-gray-500 mt-1 line-clamp-2"><?= e(mb_strimwidth($card['description'], 0, 100, '…')) ?></p>
+                                <?php endif; ?>
+                                <div class="mt-2 flex flex-wrap items-center gap-2">
+                                    <span class="text-xs px-2 py-0.5 rounded-full font-medium status-badge-<?= e($statusSlug) ?>">
+                                        <?= e($card['status']) ?>
+                                    </span>
+                                    <span class="text-xs text-gray-500" title="Upvotes">👍 <?= $upvoteCount ?></span>
+                                </div>
+                                <!-- Mobile: Dropdown zum Ändern der Priorität -->
+                                <select class="mobile-priority-select md:hidden mt-2 w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+                                        data-project-id="<?= (int)$card['id'] ?>"
+                                        onchange="handleMobilePriorityChange(this)">
+                                    <?php foreach (array_keys($columnConfig) as $opt): ?>
+                                        <option value="<?= e($opt) ?>" <?= $opt === $colName ? 'selected' : '' ?>>
+                                            <?= $columnConfig[$opt]['emoji'] ?> <?= e($opt) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
+                            <?php endforeach; ?>
                         </div>
-                        <?php endforeach; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -768,6 +826,12 @@ foreach ($projects as $p) {
                 .sortable-ghost { opacity: 0.4; }
                 .sortable-drag  { box-shadow: 0 8px 24px rgba(0,0,0,.18); }
                 .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+                .priority-category.collapsed .priority-body { display: none; }
+                .priority-category.collapsed .priority-chevron { transform: rotate(-90deg); }
+                @media (min-width: 768px) {
+                    .priority-category.collapsed .priority-body { display: block; }
+                    .priority-category.collapsed .priority-chevron { transform: none; }
+                }
             </style>
         </div>
 
@@ -916,20 +980,28 @@ foreach ($projects as $p) {
                     <button onclick="closeUpdateEmail()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
                 </div>
                 <p class="text-gray-600 mb-4">E-Mail ändern für: <strong id="email-username"></strong></p>
-                <form method="POST" action="index.php?page=verwaltung">
+                <form id="update-email-form" method="POST" action="index.php?page=verwaltung">
                     <?= csrfField() ?>
                     <input type="hidden" name="action" value="update_email">
                     <input type="hidden" name="user_id" id="email-user-id">
 
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-gray-700 mb-1">Neue E-Mail-Adresse *</label>
-                        <input type="email" name="new_email" id="email-current" required
+                        <label class="block text-sm font-bold text-gray-700 mb-1">
+                            E-Mail-Adresse <span class="text-gray-400 text-xs font-normal">(leer lassen zum Entfernen)</span>
+                        </label>
+                        <input type="email" name="new_email" id="email-current"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
                     </div>
 
-                    <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-bold">
-                        E-Mail aktualisieren
-                    </button>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-bold">
+                            E-Mail speichern
+                        </button>
+                        <button type="button" onclick="removeEmail()"
+                                class="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 font-bold">
+                            E-Mail entfernen
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -969,7 +1041,28 @@ foreach ($projects as $p) {
         // ============================================================
         // Tab-Umschaltung
         // ============================================================
-        function showTab(tab) {
+        // ---- URL-Hash-Persistenz: Tab & Collapse-Zustand überleben einen Reload,
+        //      werden aber nicht auf anderen Seiten getragen, weil der Menü-Link zur
+        //      Verwaltung ohne Hash aufgerufen wird. ----
+        function parseVerwaltungHash() {
+            const raw = (location.hash || '').replace(/^#/, '');
+            const out = {};
+            raw.split('&').filter(Boolean).forEach(kv => {
+                const [k, v = ''] = kv.split('=');
+                if (!k) return;
+                out[decodeURIComponent(k)] = decodeURIComponent(v);
+            });
+            return out;
+        }
+        function writeVerwaltungHash(obj) {
+            const s = Object.entries(obj)
+                .filter(([, v]) => v !== '' && v !== null && v !== undefined)
+                .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
+                .join('&');
+            history.replaceState(null, '', s ? '#' + s : location.pathname + location.search);
+        }
+
+        function showTab(tab, pushHash = true) {
             ['projects', 'users', 'system', 'prioritization'].forEach(t => {
                 document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
                 const btn = document.getElementById('tab-' + t);
@@ -977,7 +1070,19 @@ foreach ($projects as $p) {
                     ? 'px-4 py-2 rounded-md bg-blue-600 text-white font-bold text-sm sm:text-base'
                     : 'px-4 py-2 rounded-md bg-gray-200 text-gray-700 font-bold text-sm sm:text-base';
             });
+            if (pushHash) {
+                const h = parseVerwaltungHash();
+                h.tab = tab;
+                writeVerwaltungHash(h);
+            }
         }
+
+        // Initial-Tab aus dem URL-Hash wiederherstellen (falls vorhanden)
+        document.addEventListener('DOMContentLoaded', function () {
+            const validTabs = ['projects', 'users', 'system', 'prioritization'];
+            const h = parseVerwaltungHash();
+            if (h.tab && validTabs.includes(h.tab)) showTab(h.tab, false);
+        });
 
         // ============================================================
         // Projekt-Filter
@@ -1125,6 +1230,15 @@ foreach ($projects as $p) {
             document.getElementById('update-email-modal').classList.add('hidden');
         }
 
+        function removeEmail() {
+            const username = document.getElementById('email-username').textContent;
+            if (!confirm('E-Mail von "' + username + '" wirklich entfernen?\n\nDadurch werden E-Mail-Benachrichtigungen für diesen Nutzer automatisch deaktiviert.')) {
+                return;
+            }
+            document.getElementById('email-current').value = '';
+            document.getElementById('update-email-form').submit();
+        }
+
         function confirmDeleteUser(userId, username) {
             if (confirm('Nutzer "' + username + '" wirklich löschen?')) {
                 document.getElementById('delete-user-id').value = userId;
@@ -1148,19 +1262,24 @@ foreach ($projects as $p) {
             }
         });
 
-        // Nach Reload richtigen Tab anzeigen (falls success/error nach POST)
+        // Nach einem POST (Redirect) den Tab aus dem URL-Hash wiederherstellen
         <?php if ($success || $error): ?>
-        // Tab aus sessionStorage wiederherstellen
-        const savedTab = sessionStorage.getItem('verwaltung_tab') || 'projects';
-        showTab(savedTab);
+        (function () {
+            const validTabs = ['projects', 'users', 'system', 'prioritization'];
+            const h = parseVerwaltungHash();
+            if (h.tab && validTabs.includes(h.tab)) showTab(h.tab, false);
+        })();
         <?php endif; ?>
 
-        // Tab vor Submit speichern
+        // Beim Absenden eines Formulars den aktiven Tab im Hash festhalten,
+        // damit nach dem POST-Redirect der gleiche Tab wieder aktiv ist.
         document.querySelectorAll('form').forEach(form => {
             form.addEventListener('submit', () => {
                 const tabs = ['projects', 'users', 'system', 'prioritization'];
                 const activeTab = tabs.find(t => !document.getElementById('panel-' + t).classList.contains('hidden')) || 'projects';
-                sessionStorage.setItem('verwaltung_tab', activeTab);
+                const h = parseVerwaltungHash();
+                h.tab = activeTab;
+                writeVerwaltungHash(h);
             });
         });
 
@@ -1192,6 +1311,11 @@ foreach ($projects as $p) {
             function sendPrioritizeRequest(projectId, newPriority, cardEl, originColumn) {
                 function revertCard() {
                     originColumn.appendChild(cardEl);
+                    // Mobile-Dropdown ebenfalls zurücksetzen
+                    const sel = cardEl.querySelector('.mobile-priority-select');
+                    if (sel && originColumn.dataset.priority) {
+                        sel.value = originColumn.dataset.priority;
+                    }
                     updateColumnCounts();
                 }
 
@@ -1233,27 +1357,92 @@ foreach ($projects as $p) {
             // Spalten-Counter aktualisieren
             function updateColumnCounts() {
                 document.querySelectorAll('.priority-column').forEach(col => {
-                    const wrapper = col.parentElement; // the colored column div
-                    const countBadge = wrapper?.querySelector('h3 span');
+                    const category = col.closest('.priority-category');
+                    const countBadge = category?.querySelector('.priority-count');
                     if (countBadge) countBadge.textContent = col.querySelectorAll('.draggable-project-card').length;
                 });
             }
 
-            // Sortable.js initialisieren (nach DOM-ready, d.h. hier direkt)
-            document.querySelectorAll('.priority-column').forEach(column => {
-                Sortable.create(column, {
-                    group: 'priority-projects',
-                    animation: 150,
-                    ghostClass: 'sortable-ghost',
-                    dragClass: 'sortable-drag',
-                    onEnd: function (evt) {
-                        if (evt.from === evt.to) return; // gleiche Spalte – nichts zu tun
-                        const projectId  = parseInt(evt.item.dataset.projectId, 10);
-                        const newPriority = evt.to.dataset.priority;
-                        sendPrioritizeRequest(projectId, newPriority, evt.item, evt.from);
-                    },
+            // Karte in die Zielspalte verschieben (nach Drop oder Dropdown-Wechsel)
+            function moveCardToColumn(cardEl, targetPriority) {
+                const targetColumn = document.querySelector('.priority-column[data-priority="' + CSS.escape(targetPriority) + '"]');
+                if (targetColumn && cardEl.parentElement !== targetColumn) {
+                    targetColumn.appendChild(cardEl);
+                }
+            }
+
+            // Sortable.js – media-query-aware: nur auf >= md (768px) aktivieren
+            const mq = window.matchMedia('(min-width: 768px)');
+            let sortables = [];
+            function initSortables() {
+                sortables.forEach(s => s.destroy());
+                sortables = [];
+                if (!mq.matches) return; // auf Mobile kein Drag & Drop
+                document.querySelectorAll('.priority-column').forEach(column => {
+                    sortables.push(Sortable.create(column, {
+                        group: 'priority-projects',
+                        animation: 150,
+                        ghostClass: 'sortable-ghost',
+                        dragClass: 'sortable-drag',
+                        onEnd: function (evt) {
+                            if (evt.from === evt.to) return;
+                            const projectId  = parseInt(evt.item.dataset.projectId, 10);
+                            const newPriority = evt.to.dataset.priority;
+                            sendPrioritizeRequest(projectId, newPriority, evt.item, evt.from);
+                            // Dropdown in der Karte synchron halten
+                            const sel = evt.item.querySelector('.mobile-priority-select');
+                            if (sel) sel.value = newPriority;
+                        },
+                    }));
                 });
-            });
+            }
+            initSortables();
+            // Bei Resize/Viewport-Wechsel (Desktop ↔ Mobile) neu initialisieren
+            if (mq.addEventListener) mq.addEventListener('change', initSortables);
+            else if (mq.addListener) mq.addListener(initSortables);
+
+            // Mobile-Dropdown: Priorität per Select ändern (global exponiert für onchange)
+            window.handleMobilePriorityChange = function (selectEl) {
+                const card = selectEl.closest('.draggable-project-card');
+                if (!card) return;
+                const originColumn = card.parentElement;
+                const projectId = parseInt(selectEl.dataset.projectId, 10);
+                const newPriority = selectEl.value;
+                if (originColumn?.dataset?.priority === newPriority) return;
+                moveCardToColumn(card, newPriority);
+                updateColumnCounts();
+                sendPrioritizeRequest(projectId, newPriority, card, originColumn);
+            };
+
+            // Collapse-Toggle für Kategorie-Kopfzeilen (nur Mobile effektiv; global exponiert)
+            window.togglePriorityCategory = function (headerBtn) {
+                const category = headerBtn.closest('.priority-category');
+                if (!category) return;
+                category.classList.toggle('collapsed');
+                // Zustand in den URL-Hash schreiben, damit er einen Reload überlebt
+                if (window.__persistPrioState) window.__persistPrioState();
+            };
+
+            // Hash-Zustand für Collapse wiederherstellen (nur auf Mobile sinnvoll,
+            // Desktop-CSS überschreibt Collapse ohnehin)
+            window.__restorePrioState = function () {
+                const h = parseVerwaltungHash();
+                const collapsed = (h.collapsed || '').split(',').filter(Boolean);
+                document.querySelectorAll('.priority-category').forEach(cat => {
+                    if (collapsed.includes(cat.dataset.category)) cat.classList.add('collapsed');
+                    else cat.classList.remove('collapsed');
+                });
+            };
+            window.__persistPrioState = function () {
+                const collapsed = Array.from(document.querySelectorAll('.priority-category.collapsed'))
+                    .map(c => c.dataset.category)
+                    .filter(Boolean);
+                const h = parseVerwaltungHash();
+                if (collapsed.length) h.collapsed = collapsed.join(',');
+                else delete h.collapsed;
+                writeVerwaltungHash(h);
+            };
+            window.__restorePrioState();
 
             // Live-Suchfilter: Treffer in jeder Spalte nach oben, Rest bleibt ausgegraut.
             // Beim ersten Aufruf wird die Ursprungsreihenfolge pro Karte festgehalten,

@@ -205,7 +205,7 @@ function notifyAdminsNewProposal(string $projectName, string $proposedBy): void
 {
     $db = getDB();
 
-    $stmt = $db->prepare('SELECT email FROM users WHERE is_admin = 1 AND email_notifications = 1');
+    $stmt = $db->prepare("SELECT email FROM users WHERE is_admin = 1 AND email_notifications = 1 AND email IS NOT NULL AND email <> ''");
     $stmt->execute();
     $admins = $stmt->fetchAll();
 
@@ -237,7 +237,7 @@ function notifyProposerDecision(int $userId, string $projectName, string $status
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
 
-    if (!$user || !$user['email_notifications']) {
+    if (!$user || !$user['email_notifications'] || empty($user['email'])) {
         return;
     }
 

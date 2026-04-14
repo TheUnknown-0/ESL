@@ -76,6 +76,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $emailNotifications = isset($_POST['email_notifications']) ? 1 : 0;
 
             try {
+                // Ohne hinterlegte E-Mail dürfen Benachrichtigungen nicht aktiv sein
+                $stmt = $db->prepare('SELECT email FROM users WHERE id = ?');
+                $stmt->execute([$_SESSION['user_id']]);
+                $userRow = $stmt->fetch();
+                if ($userRow && empty($userRow['email'])) {
+                    $emailNotifications = 0;
+                }
+
                 $stmt = $db->prepare('UPDATE users SET email_notifications = ? WHERE id = ?');
                 $stmt->execute([$emailNotifications, $_SESSION['user_id']]);
                 $success = 'E-Mail-Einstellungen gespeichert.';
@@ -306,7 +314,9 @@ if (!in_array($activeTab, ['appearance', 'email'])) $activeTab = 'appearance';
                     <span class="text-gray-500">📧</span>
                     <span class="font-medium text-gray-700"><?= e($currentEmail ?: '—') ?></span>
                 </div>
-                <p class="text-xs text-gray-400 mt-2">Die E-Mail-Adresse kann nur von einem Administrator geändert werden.</p>
+                <p class="text-xs text-gray-400 mt-2">
+                    Die E-Mail-Adresse ist optional und kann nur von einem Administrator geändert oder entfernt werden.
+                </p>
             </div>
 
             <div class="bg-white rounded-lg shadow-md p-6">
@@ -317,13 +327,15 @@ if (!in_array($activeTab, ['appearance', 'email'])) $activeTab = 'appearance';
                     <?= csrfField() ?>
                     <input type="hidden" name="action" value="save_email">
 
+                    <?php $hasEmail = !empty($currentEmail); ?>
                     <div class="space-y-4 mb-6">
-                        <label class="flex items-start gap-4 cursor-pointer group">
+                        <label class="flex items-start gap-4 <?= $hasEmail ? 'cursor-pointer' : 'cursor-not-allowed opacity-60' ?> group">
                             <div class="relative mt-1">
                                 <input type="checkbox" name="email_notifications" value="1"
                                        id="email_notifications"
                                        class="sr-only peer"
-                                       <?= $currentEmailNotif ? 'checked' : '' ?>>
+                                       <?= $hasEmail ? '' : 'disabled' ?>
+                                       <?= ($hasEmail && $currentEmailNotif) ? 'checked' : '' ?>>
                                 <div class="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-blue-600 transition-colors"></div>
                                 <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
                             </div>
@@ -332,6 +344,11 @@ if (!in_array($activeTab, ['appearance', 'email'])) $activeTab = 'appearance';
                                 <div class="text-sm text-gray-500">
                                     Sie erhalten eine E-Mail, wenn ein Ihrer Vorschläge angenommen oder abgelehnt wird.
                                 </div>
+                                <?php if (!$hasEmail): ?>
+                                    <div class="text-xs text-amber-600 mt-1">
+                                        Keine E-Mail-Adresse hinterlegt – bitte einen Administrator bitten, eine einzutragen.
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </label>
                     </div>
